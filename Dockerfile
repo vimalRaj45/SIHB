@@ -1,5 +1,4 @@
-# Use a lightweight python image to save memory and space
-FROM python:3.10-slim
+FROM python:3.12-slim
 
 # Install system dependencies for OCR and PDF handling safely
 # We clear out apt-lists instantly to drastically reduce memory usage during builds
