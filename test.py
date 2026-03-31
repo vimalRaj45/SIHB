@@ -5,9 +5,14 @@ from email.header import decode_header
 
 app = Flask(__name__)
 
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 # ==== CONFIG ====
-EMAIL = "vimalraj5207@gmail.com"
-PASSWORD = "lslenevpvcxrvzjt"  # Your Gmail app password
+EMAIL = os.getenv("EMAIL")
+PASSWORD = os.getenv("EMAIL_PASSWORD")
 IMAP_SERVER = "imap.gmail.com"
 
 def fetch_unread_emails():

@@ -5,11 +5,7 @@ import psycopg2.extras
 import requests
 import bcrypt
 from sentence_transformers import SentenceTransformer
-import torch
 import io
-
-# STRICT RAM constraints for Render 512MB limit
-torch.set_num_threads(1)
 from flask import send_file
 from pdf2image import convert_from_bytes
 import pytesseract
@@ -49,25 +45,9 @@ HF_HEADERS = {"Authorization": f"Bearer {HF_TOKEN}"}
 # ==== Load local embedding model ====
 embed_model = SentenceTransformer('all-MiniLM-L6-v2')  # 384-dim embeddings
 
-from psycopg2.pool import ThreadedConnectionPool
-
-db_pool = None
-try:
-    db_pool = ThreadedConnectionPool(1, 20, **DB_CONFIG)
-except Exception as e:
-    print("Database pool init error:", e)
-
 # ==== DB HELPER ====
 def get_conn():
-    if db_pool:
-        return db_pool.getconn()
     return psycopg2.connect(**DB_CONFIG)
-
-def release_conn(conn):
-    if db_pool:
-        db_pool.putconn(conn)
-    else:
-        conn.close()
 
 # ==== USER AUTH ====
 @app.route("/register", methods=["POST"])
@@ -92,7 +72,7 @@ def register():
         return jsonify({"error": str(e)}), 400
     finally:
         cur.close()
-        release_conn(conn)
+        conn.close()
 
 
 # ==== DOWNLOAD / VIEW DOCUMENT ====
@@ -103,7 +83,7 @@ def get_document(doc_id):
     cur.execute("SELECT filename, file_data FROM documents WHERE id=%s", (doc_id,))
     doc = cur.fetchone()
     cur.close()
-    release_conn(conn)
+    conn.close()
 
     if not doc:
         return jsonify({"error": "Document not found"}), 404
@@ -126,7 +106,7 @@ def login():
     cur.execute("SELECT * FROM users WHERE username=%s", (username,))
     user = cur.fetchone()
     cur.close()
-    release_conn(conn)
+    conn.close()
 
     if not user:
         return jsonify({"error": "User not found"}), 404
@@ -230,15 +210,15 @@ def upload():
     """, (user_id, filename, psycopg2.Binary(file_bytes), extracted_text, summary, classification, embedding))
     conn.commit()
     cur.close()
-    release_conn(conn)
+    conn.close()
 
     return jsonify({"msg": "File uploaded & processed", "extracted_text": extracted_text}), 201
 
 
 
 # ==== CONFIG ====
-EMAIL = os.getenv("EMAIL", "")
-PASSWORD = os.getenv("EMAIL_PASSWORD", "")
+EMAIL = "vimalraj5207@gmail.com"
+PASSWORD = "lslenevpvcxrvzjt"  # Gmail app password
 IMAP_SERVER = "imap.gmail.com"
 
 def fetch_last_5_emails():
@@ -390,7 +370,7 @@ def search():
     results = cur.fetchall()
 
     cur.close()
-    release_conn(conn)
+    conn.close()
 
     return jsonify([dict(r) for r in results])
 
@@ -439,7 +419,7 @@ def profile(user_id):
 
     finally:
         cur.close()
-        release_conn(conn)
+        conn.close()
 
 
 
@@ -463,7 +443,7 @@ def recent_docs():
 
         docs = cur.fetchall()
         cur.close()
-        release_conn(conn)
+        conn.close()
 
         # Convert to JSON-serializable format
         docs_list = [
@@ -525,7 +505,7 @@ def notifications():
     cur.execute(base_query, tuple(params))
     results = cur.fetchall()
     cur.close()
-    release_conn(conn)
+    conn.close()
 
     notifications = []
     for row in results:
@@ -546,11 +526,5 @@ def notifications():
 if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 5000))
-    debug = os.environ.get("FLASK_ENV") == "development"
-    if debug:
-        app.run(host="0.0.0.0", port=port, debug=True)
-    else:
-        from waitress import serve
-        print(f"Starting Waitress production server on port {port}...")
-        serve(app, host="0.0.0.0", port=port, threads=2)
+    app.run(host="0.0.0.0", port=port)
 
